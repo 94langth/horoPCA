@@ -112,7 +112,7 @@ if __name__ == "__main__":
     if args.model in pca_models.keys():
         model_params = pca_models[args.model]
         for _ in range(5):
-            if pca_models[args.model] == 'horopca_ours':
+            if args.model == 'horopca_ours':
                 if torch.cuda.is_available():
                     torch.set_default_device('cuda:0')
                 manifold = PoincareBall(torch.tensor(1.0, dtype=torch.float64), dtype=torch.float64)
