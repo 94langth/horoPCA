@@ -23,7 +23,7 @@ parser = argparse.ArgumentParser(
 parser.add_argument('--dataset', type=str, help='which datasets to use', default="smalltree",
                     choices=["smalltree", "phylo-tree", "bio-diseasome", "ca-CSphd"])
 parser.add_argument('--model', type=str, help='which dimensionality reduction method to use', default="horopca",
-                    choices=["pca", "tpca", "pga", "bsa", "hmds", "horopca"])
+                    choices=["pca", "tpca", "pga", "bsa", "hmds", "horopca_chami", "horopca_ours"])
 parser.add_argument('--metrics', nargs='+', help='which metrics to use', default=["distortion", "frechet_var"])
 parser.add_argument(
     "--dim", default=10, type=int, help="input embedding dimension to use"
@@ -57,7 +57,8 @@ if __name__ == "__main__":
         'tpca': {'class': TangentPCA, 'optim': False, 'iterative': False, "n_runs": 1},
         'pga': {'class': PGA, 'optim': True, 'iterative': True, "n_runs": args.n_runs},
         'bsa': {'class': BSA, 'optim': True, 'iterative': False, "n_runs": args.n_runs},
-        'horopca': {'class': HoroPCA, 'optim': True, 'iterative': False, "n_runs": args.n_runs},
+        'horopca_chami': {'class': HoroPCA, 'optim': True, 'iterative': False, "n_runs": args.n_runs},
+        'horopca_ours': {'class': HoroPCA_ours, 'optim': True, 'iterative': False, "n_runs": args.n_runs},
     }
     metrics = {}
     embeddings = {}
@@ -105,18 +106,13 @@ if __name__ == "__main__":
     logging.info(f"Running {args.model} for dimensionality reduction")
     seed = 43
     torch.manual_seed(seed)
+    torch.use_deterministic_algorithms(True)
     metrics = []
     dist_orig = poincare.pairwise_distance(x)
     if args.model in pca_models.keys():
         model_params = pca_models[args.model]
         for _ in range(5):
-            if False:
-                model = model_params['class'](dim=args.dim, n_components=args.n_components, lr=args.lr, max_steps=500)
-                if torch.cuda.is_available():
-                    model.cuda()
-                model.fit(x, iterative=model_params['iterative'], optim=model_params['optim'])
-                metrics.append(model.compute_metrics(x))
-            else:
+            if pca_models[args.model] == 'horopca_ours':
                 if torch.cuda.is_available():
                     torch.set_default_device('cuda:0')
                 manifold = PoincareBall(torch.tensor(1.0, dtype=torch.float64), dtype=torch.float64)
@@ -124,6 +120,12 @@ if __name__ == "__main__":
                 model.fit(z)
                 embeddings = model.transform(z)
                 metrics.append(compute_metrics(x, embeddings))
+            else:
+                model = model_params['class'](dim=args.dim, n_components=args.n_components, lr=args.lr, max_steps=500)
+                if torch.cuda.is_available():
+                    model.cuda()
+                model.fit(x, iterative=model_params['iterative'], optim=model_params['optim'])
+                metrics.append(model.compute_metrics(x))
         metrics = aggregate_metrics(metrics)
     else:
         # run hMDS baseline
